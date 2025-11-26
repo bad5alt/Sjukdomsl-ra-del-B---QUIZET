@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Sjukdomslära del B — Quiz</title>
+<style>
+  :root{
+    --bg:#f6f8ff; --card:#ffffff; --text:#0f172a; --muted:#64748b; --accent:#2563eb;
+  }
+  .dark{
+    --bg:#071029; --card:#081224; --text:#e6eef8; --muted:#9fb3d6; --accent:#3b82f6;
+  }
+  body{margin:0;font-family:Inter,system-ui,Arial;background:var(--bg);color:var(--text);transition:background .25s,color .25s}
+  .container{max-width:980px;margin:28px auto;padding:18px}
+  .card{background:var(--card);border-radius:14px;padding:18px;border:1px solid rgba(0,0,0,0.06);box-shadow:0 8px 24px rgba(2,6,23,0.06)}
+  h1{margin:0 0 8px 0}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:999px;border:1px solid var(--muted);background:transparent;color:var(--text);cursor:pointer;font-weight:600}
+  .chip.selected{background:linear-gradient(135deg,var(--accent),#60a5fa);color:white;border:0;box-shadow:0 6px 18px rgba(37,99,235,0.18)}
+  .qbtn{padding:10px 14px;border-radius:12px;border:1px solid var(--muted);background:transparent;color:var(--text);cursor:pointer;font-weight:700}
+  .qbtn.selected{background:linear-gradient(90deg,#34d399,#60a5fa);color:white;border:0}
+  button.primary{background:var(--accent);color:white;border:0;padding:10px 18px;border-radius:12px;cursor:pointer;font-weight:700}
+  button.answer{display:block;width:100%;text-align:left;padding:12px 14px;margin-top:12px;border-radius:12px;border:0;background:linear-gradient(90deg,#eef2ff,#fff);cursor:pointer;font-weight:600}
+  button.correct{background:linear-gradient(90deg,#34d399,#10b981) !important;color:white;border:0}
+  button.wrong{background:linear-gradient(90deg,#fb7185,#ef4444) !important;color:white;border:0}
+  #themeToggle{position:fixed;right:60px;top:18px;padding:8px;border-radius:10px;border:0;background:var(--card);cursor:pointer;z-index:9999}
+  #soundToggleBtn{position:fixed;right:18px;top:18px;padding:8px;border-radius:10px;border:0;background:var(--card);cursor:pointer;z-index:9999}
+  #homeBtn{position:fixed;left:18px;top:18px;padding:8px;border-radius:10px;border:0;background:var(--card);cursor:pointer;z-index:9999}
+  .score{font-weight:700;margin-top:12px}
+  .result-list{margin-top:12px}
+  .actions-row{display:flex;gap:10px;margin-top:16px}
+  .small{font-size:0.9rem;color:var(--muted)}
+  .progress-wrap{height:12px;background:rgba(15,23,42,0.06);border-radius:999px;overflow:hidden;margin-top:10px}
+  .progress-bar{height:100%;width:0%;transition:width .35s}
+  .confetti{position:fixed;width:10px;height:14px;opacity:0.95;z-index:9999;border-radius:2px}
+  .stats-grid{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+  .stat-card{padding:8px 12px;background:rgba(14,165,233,0.05);border-radius:10px;font-weight:700}
+  #historyChart{width:100%;height:80px}
+  /* Små estetiska tweaks */
+  .title-big{font-family:'Comic Sans MS', 'Segoe UI', Tahoma, sans-serif;font-size:28px}
+  .muted-block{color:var(--muted);font-size:0.9rem}
+</style>
+</head>
+<body>
+  <button id="themeToggle" title="Ljus/mörk">🌓</button>
+  <button id="soundToggleBtn" title="Ljud av/på">🔈</button>
+  <button id="homeBtn" style="display:none" title="Till huvudmenyn">🏠</button>
+
+  <div class="container">
+    <div id="setup" class="card">
+      <div class="title-big">Sjukdomslära del B</div>
+      <h1 style="margin-top:6px">QUIZET</h1>
+      <div class="muted-block">Välj kategorier och antal frågor (10/20/30/40)</div>
+
+      <div style="height:12px"></div>
+      <div class="small">Dina bästa resultat: <span id="bestScore">-</span></div>
+      <div class="stats-grid" id="statsGrid"></div>
+      <div style="height:12px"></div>
+
+      <div><strong>Kategorier</strong></div>
+      <div class="chips" id="catContainer"></div>
+
+      <h3 style="margin-top:16px">Antal frågor</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="qbtn" data-n="10">10</button>
+        <button class="qbtn" data-n="20">20</button>
+        <button class="qbtn" data-n="30">30</button>
+        <button class="qbtn" data-n="40">40</button>
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+        <label style="display:inline-flex;align-items:center;gap:10px"><input id="hintToggle" type="checkbox"> Visa förklaring efter svar</label>
+      </div>
+
+      <div style="margin-top:16px">
+        <button id="go" class="primary">Starta quiz</button>
+      </div>
+
+      <div style="margin-top:14px">
+        <canvas id="historyChart"></canvas>
+      </div>
+
+    </div>
+
+    <div id="quiz" class="card" style="display:none;margin-top:18px">
+      <div id="progressWrap" class="small">Fråga <span id="curIdx">0</span>/<span id="curTotal">0</span>
+        <div class="progress-wrap"><div id="progressBar" class="progress-bar"></div></div>
+      </div>
+      <div id="quizContent" style="margin-top:12px"></div>
+    </div>
+
+    <div id="result" class="card" style="display:none;margin-top:18px"></div>
+  </div>
+
+<script>
+/* ---------- DEBUG LOG: START ---------- */
+console.log('Quiz HTML laddad');
+// Debug helper
+function dbg(...args){ console.log('[DEBUG]', ...args); }
+/* ---------- DEBUG LOG: END   ---------- */
+
+/* ---------------------------
+   FRÅGEBANK (inbäddad)
+   --------------------------- */
+const bank = {
+  "Hematologi":[
+    {q:"Vilket prov används för att definiera anemi hos kvinnor?",a:["<120 g/L","<130 g/L","<110 g/L"],correct:0},
+    {q:"Vilken brist orsakar megaloblastanemi?",a:["Järn","B12 eller folat","Erytropoetin"],correct:1},
+    {q:"Vilket symtom är typiskt vid hemolys?",a:["Minskad bilirubin","Ikterus","Hypotermi"],correct:1},
+    {q:"Vilket värde är lågt vid järnbristanemi?",a:["Ferritin","Natrium","CRP"],correct:0},
+    {q:"Vad är trombocytopeni?",a:["För lite vita blodkroppar","För lite blodplättar","För lite plasma"],correct:1},
+    {q:"Vad ökar retikulocyter vid?",a:["Hemolys","Virusinfektion","Hypertoni"],correct:0},
+    {q:"Vad orsakar sekundär anemi?",a:["Inflammation","För lite salt","För mycket vatten"],correct:0},
+    {q:"Tecken på järnbrist?",a:["Glossit","Bradykardi","Panikångest"],correct:0},
+    {q:"Vad är petechier?",a:["Små blödningar i huden","Hudsvamp","Värmeutslag"],correct:0},
+    {q:"Vilken behandling ges ofta vid B12-brist?",a:["Intramuskulära injektioner","Tablettkortison","Insulin"],correct:0},
+    {q:"Vad är aplastisk anemi?",a:["Brist på alla blodcellslinjer","Ökad Hb","Högt ferritin"],correct:0},
+    {q:"Vilken provparameter visar erytrocytstorlek?",a:["MCV","CRP","TIBC"],correct:0},
+    {q:"Vad indikerar högt LD?",a:["Hemolys eller vävnadsskada","Hypotyreos","Lågt blodsocker"],correct:0},
+    {q:"Vid misstanke på leukemi görs ofta?",a:["Benmärgsprov","Lungfunktionstest","Hudbiopsi"],correct:0},
+    {q:"Vad är vanlig komplikation vid neutropeni?",a:["Allvarliga infektioner","Hypertoni","Blodpropp"],correct:0},
+    {q:"Vilken behandling används vid järnbrist?",a:["Järntabletter","Kortison","Bisfosfonater"],correct:0},
+    {q:"Vad betyder trombocytos?",a:["För mycket blodplättar","För lite vita blodkroppar","Lågt Hb"],correct:0},
+    {q:"Vad mäter retikulocyter?",a:["Nya röda blodkroppar","Blodglukos","CRP"],correct:0},
+    {q:"Vilket prov följer hemolys?",a:["Haptoglobin minskar","Ferritin ökar","PSA ökar"],correct:0},
+    {q:"Vad är en vanlig orsak till makrocytär anemi?",a:["B12-brist","Järnbrist","Njursvikt"],correct:0}
+  ],
+  "Onkologi":[
+    {q:"Vilken metod används för screening av bröstcancer?",a:["CT","Mammografi","MR"],correct:1},
+    {q:"Vilket symtom är typiskt vid leukemi?",a:["Ökad muskelmassa","Blåmärken","Ökad aptit"],correct:1},
+    {q:"Vad betyder metastasering?",a:["Att tumören krymper","Spridning av cancer","En godartad förändring"],correct:1},
+    {q:"Vilken behandling är vanlig vid lymfom?",a:["Antibiotika","Cytostatika","Insulin"],correct:1},
+    {q:"Vilket är ett alarmsymtom vid cancer?",a:["Tillfällig snuva","Långvarig hosta","Feber under 38°C"],correct:1},
+    {q:"Vad är tumörlyssyndrom?",a:["Snabb tumörnedbrytning","Långsam tillväxt","Lokal infektion"],correct:0},
+    {q:"Vilken behandling kan påverka fertilitet?",a:["Cytostatika","Antibiotika","NSAID"],correct:0},
+    {q:"Vilken undersökning används för att påvisa metastaser?",a:["PET","EKG","Spirometri"],correct:0},
+    {q:"Vad innebär palliativ vård?",a:["Botande","Symtomlindrande","Förebyggande"],correct:1},
+    {q:"Vilken markör används ofta i prostatacanceruppföljning?",a:["PSA","CEA","CA-125"],correct:0},
+    {q:"Vad är neoadjuvant behandling?",a:["Behandling före operation","Behandling efter 10 år","Endast smärtlindring"],correct:0},
+    {q:"Vilken biverkan är vanlig vid cytostatika?",a:["Håravfall","Ökad bentäthet","Ökad aptit"],correct:0},
+    {q:"Vad betyder kurativ behandling?",a:["Botande syfte","Palliativt syfte","Endast förebyggande"],correct:0},
+    {q:"Vad är viktigaste åtgärden vid misstänkt malign tumör?",a:["Biopsi","Vila","Antibiotika direkt"],correct:0},
+    {q:"Vilken undersökning används för brösttumörer?",a:["Mammografi","EKG","Lung-CT"],correct:0},
+    {q:"Vad är målet med palliativ kemoterapi?",a:["Symtomlindring och livsförlängning","Fullständig bot","Öka aptit"],correct:0},
+    {q:"Vad bör följas upp efter cancerbehandling?",a:["Recidiv och biverkningar","Endast blodtryck","Endast vikt"],correct:0},
+    {q:"Vilken tumörmarkör kan användas vid ovarialcancer?",a:["CA-125","PSA","CEA"],correct:0},
+    {q:"Vad innebär remiss till cancercentrum?",a:["Specialiserad bedömning","Akut ambulans","Fysioterapi"],correct:0},
+    {q:"Vad är vanligaste palliativa symtomet?",a:["Smärta","Frossa","Klåda"],correct:0}
+  ],
+  "Reumatiska sjukdomar":[
+    {q:"Vilken autoantikropp är typisk vid RA?",a:["ACPA","ANA","PSA"],correct:0},
+    {q:"Vad är ett vanligt symtom vid RA?",a:["Nedsatt syn","Morgonstelhet","Snabb puls"],correct:1},
+    {q:"Vilken behandling används ofta vid RA?",a:["Metotrexat","Penicillin","Insulin"],correct:0},
+    {q:"Vad är ett typiskt fynd vid artros?",a:["Ledsvullnad","Nedslitet ledbrosk","Hudutslag"],correct:1},
+    {q:"Vilket prov är ofta förhöjt vid inflammation?",a:["Albumin","CRP","Kalcium"],correct:1},
+    {q:"Vad kan långvarigt kortison leda till?",a:["Osteoporos","Ökad muskelmassa","Förbättrad sömn"],correct:0},
+    {q:"Vilket tillstånd ger uratkristaller i leder?",a:["Gikt","RA","Osteoporos"],correct:0},
+    {q:"Vilken åtgärd är viktig vid artros?",a:["Fysisk träning","Total vila","Antibiotika"],correct:0},
+    {q:"Vilken sjukdom ger torrhet i ögon och mun?",a:["Sjögrens syndrom","Gikt","KML"],correct:0},
+    {q:"Vilken undersökning visar ledbrosk bäst?",a:["MR","EKG","Röntgen av handen"],correct:0},
+    {q:"Vad är spondylartrit?",a:["Inflammation i ryggraden","Lunginflammation","Höftluxation"],correct:0},
+    {q:"Vilket läkemedel är en TNF-hämmare?",a:["Infliximab","Paracetamol","Ibuprofen"],correct:0},
+    {q:"Vilken provsvar ses ofta vid autoimmunitet?",a:["ANA positiv","Lågt Hb","Högt TSH"],correct:0},
+    {q:"Vad är systemisk lupus erythematosus?",a:["En autoimmun multisystemsjukdom","Enbart hudåkomma","Endast ledvärk"],correct:0},
+    {q:"Vilken undersökning kan visa inflammation i led?",a:["Ultraljud","EKG","Röntgen av bröstkorg"],correct:0},
+    {q:"Vad är handläggning vid akut giktanfall?",a:["NSAID och vila","Antibiotika","Kortison dagligen"],correct:0},
+    {q:"Vilket råd ges för långsiktig RA-handling?",a:["Tidigt DMARD-behandling","Undvik träning","Öka sockerintag"],correct:0},
+    {q:"Vad är typiskt vid polymyalgia rheumatica?",a:["Morgonstelhet och muskelsmärta","Hudutslag","Feber över 40°C"],correct:0},
+    {q:"Vilket symtom ses vid reaktiv artrit?",a:["Ledproblem efter infektion","Plötslig blindhet","Hörselnedsättning"],correct:0},
+    {q:"Vad är ett viktigt mål vid reumatologisk behandling?",a:["Remission eller låg sjukdomsaktivitet","Endast smärtlindring","Ökad medicinering alltid"],correct:0}
+  ],
+  "Osteoporos":[
+    {q:"Vad mäter en DEXA-undersökning?",a:["Bentäthet","Lungfunktion","Hjärtstorlek"],correct:0},
+    {q:"Vad ökar risken för osteoporos?",a:["Fysisk aktivitet","Rökning","Högt blodtryck"],correct:1},
+    {q:"Vilken vitamin är viktig för benhälsa?",a:["D-vitamin","C-vitamin","B1"],correct:0},
+    {q:"Vad är en typisk komplikation vid osteoporos?",a:["Benskörhetsfraktur","Muskelbristning","Njursvikt"],correct:0},
+    {q:"Vilket hormon är viktigt för skelettet?",a:["Östrogen","Adrenalin","Insulin"],correct:0},
+    {q:"Vilken läkemedelsgrupp minskar benresorption?",a:["Bisfosfonater","NSAID","Antibiotika"],correct:0},
+    {q:"Vad är viktigt för fallprevention?",a:["Träning och hemmiljöbedömning","Ökad sängtid","Undvika vätska"],correct:0},
+    {q:"Vilken fraktur är vanlig vid osteoporos?",a:["Höftfraktur","Handfraktur","Skulderfraktur"],correct:0},
+    {q:"Vad kontrolleras vid osteoporosutredning?",a:["D-vitamin","PSA","TSH"],correct:0},
+    {q:"Vilken livsstilsfaktor minskar bentäthet?",a:["Rökning","Styrketräning","Vitaminintag"],correct:0},
+    {q:"Vad är sekundär osteoporos?",a:["Benskörhet pga annan sjukdom eller läkemedel","Åldersrelaterad benskörhet","Barns sjukdom"],correct:0},
+    {q:"Vilken undersökning är första steg vid frakturmisstanke?",a:["Röntgen","DEXA","Blodprov"],correct:0},
+    {q:"Vilken kostrådgivning ges vid osteoporos?",a:["Kalciumrik kost och D-vitamin","Undvik protein","Endast fettfri kost"],correct:0},
+    {q:"Vad är konsekvensen av högt fallriskindex?",a:["Ökad frakturrisk","Minskad depression","Ökad aptit"],correct:0},
+    {q:"Vilken åtgärd minskar vertebrala frakturer?",a:["Bisfosfonater","Kortison","Antibiotika"],correct:0},
+    {q:"När rekommenderas osteoporosutredning?",a:["Efter lågenergifraktur","Vid tonårssmärta","Varje år från 20"],correct:0},
+    {q:"Vad är FRAX?",a:["Riskverktyg för fraktur","Ett läkemedel","En kirurgisk metod"],correct:0},
+    {q:"Vilken grupp har högst risk för osteoporos?",a:["Postmenopausala kvinnor","Barn","Yrkesidrottare"],correct:0},
+    {q:"Vad är en vanlig profylax efter höftfraktur?",a:["Fallprevention och styrketräning","Lång sängvila","Ökad saltintag"],correct:0},
+    {q:"Vilken effekt har rökstopp på benhälsa?",a:["Minskar frakturrisken över tid","Ökar frakturer direkt","Ingen effekt"],correct:0}
+  ],
+  "Ortopedi":[
+    {q:"Vilken fraktur är vanlig hos äldre vid fall?",a:["Höftfraktur","Axelfraktur","Näsfraktur"],correct:0},
+    {q:"Vad är första åtgärd vid misstänkt fraktur?",a:["Belasta benet","Immobilisera","Massage"],correct:1},
+    {q:"Vilket symtom tyder på compartment syndrome?",a:["Ökad aptit","Svår smärta","Feber"],correct:1},
+    {q:"Vad används ofta för att diagnosticera en fraktur?",a:["MR","Röntgen","PET"],correct:1},
+    {q:"Vad är luxation?",a:["Blödning","Ur led","Infektion"],correct:1},
+    {q:"Vad är viktigt postoperativt efter höftfraktur?",a:["Tidig mobilisering","Lång sängvila","Ingen mat"],correct:0},
+    {q:"Vilken behandling används för instabila tibiafrakturer?",a:["Intramedullär spik","Ortotik","Kortison"],correct:0},
+    {q:"Vad är extern fixation?",a:["Yttre stag för stabilisering","En typ av smärtlindring","Ett läkemedel"],correct:0},
+    {q:"Vilken komplikation kan följa axillär lymfkörtelkirurgi?",a:["Lymfödem","Diabetes","Urinvägsinfektion"],correct:0},
+    {q:"Vad indikerar kortat och utåtroterat ben efter trauma?",a:["Dislocerad cervikal höftfraktur","Distal radiusfraktur","Knäluxation"],correct:0},
+    {q:"Vad är viktigast för att förebygga DVT efter operation?",a:["Trombosprofylax och mobilisering","Total vila","Endast kompression"],correct:0},
+    {q:"Vad är en vanlig orsak till knäsmärta?",a:["Artros","Hjärtsvikt","Astma"],correct:0},
+    {q:"Vad är en femurfraktur ofta associerad med?",a:["Höftproblematik","Halsbränna","Högt blodtryck"],correct:0},
+    {q:"Vilken åtgärd vid öppen fraktur?",a:["Operation och antibiotika","Vila hemma","Endast smärtstillning"],correct:0},
+    {q:"Vad är skillnaden mellan spricka och komplett fraktur?",a:["Spricka ej genom benet, komplett genom hela benet","Spricka är allvarligare","Spricka läker aldrig"],correct:0},
+    {q:"Vad är viktigt efter ligamentkirurgi?",a:["Rehab och långsam belastning","Omedelbar full belastning","Undvik fysioterapi"],correct:0},
+    {q:"Vilket test kan användas för ACL-skada?",a:["Lachman-test","Spirometri","EKG"],correct:0},
+    {q:"Vad är en proximal humerusfraktur?",a:["Fraktur i överarmen nära axeln","Fraktur i underbenet","Fraktur i skallbenet"],correct:0},
+    {q:"Vad är målet med ortopedisk akut behandling?",a:["Stabilisering och smärtlindring","Fullständig bot i 1 dag","Endast observation"],correct:0}
+  ],
+  "Geriatrik/kognitiva sjukdomar":[
+    {q:"Vad innebär delirium?",a:["Kronisk minnesförlust","Akut förvirring","Synhallucinationer"],correct:1},
+    {q:"Vad är ett tidigt symtom på demens?",a:["Ryggsmärta","Minnesstörning","Hosta"],correct:1},
+    {q:"Vilken är en riskfaktor för delirium?",a:["Stabil elektrolytbalans","Infektion","Hög kondition"],correct:1},
+    {q:"Vad är BPSD?",a:["Beteendemässiga och psykiska symtom vid demens","Blodtrycksfall","Balanspåverkan"],correct:0},
+    {q:"Vilket är vanligt vid Alzheimers?",a:["Personlighetsförändringar","Störd leverfunktion","Ökad muskelmassa"],correct:0},
+    {q:"Vad är multisjuklighet?",a:["Flera samtidiga kroniska sjukdomar","Endast en sjukdom","Endast psykisk sjukdom"],correct:0},
+    {q:"Vad är viktigt vid vård av äldre efter höftfraktur?",a:["Snabb operation och rehab","Lång sängvila","Bortse från nutrition"],correct:0},
+    {q:"Vilken åtgärd förebygger fall hos äldre?",a:["Styrketräning och hemmiljöanpassning","Öka läkemedel","Minska vätska"],correct:0},
+    {q:"Vilket tillstånd kan vara reversibelt hos äldre?",a:["Delirium","Alzheimers","Parkinsons"],correct:0},
+    {q:"Vad är viktigast i nutrition för äldre?",a:["Energi- och proteinrik kost","Väldigt låg kaloriintag","Endast flytande"],correct:0},
+    {q:"Vilken åtgärd minskar risken för trycksår?",a:["Tidiga vändningar och hudinspektion","Full sängvila","Ökad socker"],correct:0},
+    {q:"Vad är polyfarmaci?",a:["Många samtidiga läkemedel","Brist på läkemedel","Endast naturläkemedel"],correct:0},
+    {q:"Vad är normal åldrande vs sjukdom?",a:["Långsam kognitiv nedgång är inte alltid sjukdom","Allt minnesbortfall är sjukdom","Alla äldre får demens"],correct:0},
+    {q:"Vad är viktigt vid utskrivning av äldre?",a:["Planering av rehab och hjälpinsatser","Ingen uppföljning","Avvakta 6 månader"],correct:0},
+    {q:"Vilket instrument kan screena kognitiv funktion?",a:["MMSE eller MoCA","EKG","Spirometri"],correct:0},
+    {q:"Vad är en vanlig orsak till fall hos äldre?",a:["Läkemedelsbiverkan","Ungdomlig hyperaktivitet","Överträning"],correct:0},
+    {q:"Vad är viktigt för social hälsa för äldre?",a:["Kontakt och aktiviteter","Isolering","Endast vila"],correct:0},
+    {q:"Vilken dietrisk är vanlig hos äldre?",a:["Undernäring","Överätning","Förmycket protein"],correct:0},
+    {q:"Vilken åtgärd hjälper återhämtning efter infektion hos äldre?",a:["Tidigt mobilisering och nutrition","Sängläge utan mat","Undvik vätska"],correct:0}
+  ],
+  "Neurologiska sjukdomar":[
+    {q:"Vad är ett typiskt symtom vid MS?",a:["Demyeliniserande skador","Förlamning av hjärnnerver","Ökad bentäthet"],correct:0},
+    {q:"Vilket symtom är vanligt vid Parkinsons sjukdom?",a:["Tremor","Håravfall","Sväljsvårigheter"],correct:0},
+    {q:"Vad orsakar epilepsi?",a:["Okontrollerad elektrisk aktivitet i hjärnan","För lite syre","Vitaminbrist"],correct:0},
+    {q:"Vilket symtom är vanligt vid ALS?",a:["Muskelförtvining","Feber","Svullna lymfkörtlar"],correct:0},
+    {q:"Vad är aura vid migrän?",a:["Feber","Synstörningar","Illamående"],correct:1},
+    {q:"Vilken undersökning visar fokala lesioner?",a:["CT/MR","EKG","Spirometri"],correct:0},
+    {q:"Vad är postkommotionellt syndrom?",a:["Symtom efter skallskada","Lungsjukdom","Njursjukdom"],correct:0},
+    {q:"Vad är viktigt vid epilepsi?",a:["Minska anfall via antiepileptika","Öka anfall","Öka alkoholintag"],correct:0},
+    {q:"Vilken sjukdom ger ofta vilotremor?",a:["Parkinsons sjukdom","ALS","MS"],correct:0},
+    {q:"Vad är viktigt att kontrollera vid huvudvärk utvärdering?",a:["Fokala neurologiska bortfall","Hudfynd","Blodglukos bara"],correct:0},
+    {q:"Vad är Guillain-Barré syndrom?",a:["Akut inflammatorisk polyneuropati","Kronisk huvudvärk","Njursjukdom"],correct:0},
+    {q:"Vad är en generaliserad anfallstyp?",a:["Tonic-clonic","Hemi-seizure","Lokal rodnad"],correct:0},
+    {q:"Vilket tillstånd kan ge plötslig ensidig paralys?",a:["Stroke","Astma","Hypotyreos"],correct:0},
+    {q:"Vad är farmakologisk behandling vid Parkinsons?",a:["Levodopa","Insulin","Antibiotika"],correct:0},
+    {q:"Vad står EEG för?",a:["Elektroencefalogram","Ekokardiogram","Energi EKG"],correct:0},
+    {q:"Vad är differentiellt vid akut huvudvärk?",a:["Subarachnoidalblödning","Lungemboli","Hjärtinfarkt"],correct:0},
+    {q:"Vad är karaktäristiskt för perifer neuropati?",a:["Distal känselnedsättning","Enbart minnesproblem","Endast yrsel"],correct:0},
+    {q:"Vad är viktig akut åtgärd vid status epilepticus?",a:["Snabb benzodiazepinbehandling","Vänta","Ge NSAID"],correct:0},
+    {q:"Vad är viktigt vid rehabilitering efter stroke?",a:["Tidiga mobiliserings- och logopedinsatser","Endast vila","Endast psykolog"],correct:0},
+    {q:"Vad kan orsaka polyneuropati?",a:["Diabetes","KOL","Högt blodtryck"],correct:0}
+  ],
+  "Cerebrovaskulära sjukdomar":[
+    {q:"Vad betyder TIA?",a:["Transitorisk ischemisk attack","Total hjärninfarkt","Tryckökning i hjärnstammen"],correct:0},
+    {q:"Vilket symtom är typiskt vid stroke?",a:["Ensidig svaghet","Snuva","Ökad aptit"],correct:0},
+    {q:"Vilken undersökning görs akut vid misstänkt stroke?",a:["Röntgen thorax","CT hjärna","MR knä"],correct:1},
+    {q:"Vad är FAST-testet till för?",a:["Identifiera stroke","Mäta blodtryck","Bedöma lungfunktion"],correct:0},
+    {q:"Vad är en riskfaktor för stroke?",a:["Hypertoni","Lågt blodtryck","Högt insulin"],correct:0},
+    {q:"Vad är trombolys?",a:["Blodproppsupplösande behandling","Antibiotikabehandling","Smärtstillande"],correct:0},
+    {q:"Vad innebär hemipares?",a:["Halvsidig svaghet","Halsont","Hörselnedsättning"],correct:0},
+    {q:"Varför görs sväljbedömning efter stroke?",a:["För att förebygga aspiration","För att mäta aptit","För att öka saliv"],correct:0},
+    {q:"Vad är viktigt för sekundärprevention efter stroke?",a:["Blodtryckskontroll","Isolering","Ökad alkohol"],correct:0},
+    {q:"Vad innebär reperfusion vid ischemisk stroke?",a:["Återställande av blodflöde","Ökad inflammation","Syrebrist"],correct:0},
+    {q:"Vad är penumbra vid stroke?",a:["Område med potentiellt räddbar vävnad","Ett läkemedel","En kirurgisk teknik"],correct:0},
+    {q:"Vilken tid är central för trombolysbeslut?",a:["Tidsfönster inom 4.5 timmar","12 timmar","48 timmar"],correct:0},
+    {q:"Vad mäter NIHSS?",a:["Stroke-svårighetsgrad","Blodtryck","Blodsocker"],correct:0},
+    {q:"Vad är en komplikation efter stor hemisfärinfarkt?",a:["Herniation/ökat ICP","Njursvikt","Lungemboli"],correct:0},
+    {q:"Vad är viktig akut åtgärd vid misstänkt subarachnoidalblödning?",a:["CT utan kontrast","Vänta","Ge NSAID"],correct:0},
+    {q:"Vad är indikationen för mekanisk trombektomi?",a:["Större proximala kärlockulationer","Alla TIA","Endast småblödningar"],correct:0},
+    {q:"Vad innebär antikoagulation efter stroke vid förmaksflimmer?",a:["Minskar embolirisk","Ökar infektion","Ingen effekt"],correct:0},
+    {q:"Vad är viktigt i post-stroke omvårdnad för att minska pneumoni?",a:["Tidig sväljbedömning och mobilisering","Ökad sömn","Minskad nutrition"],correct:0},
+    {q:"Vilken bildmodalitet kan visa blödning tidigt?",a:["CT utan kontrast","EKG","DEXA"],correct:0},
+    {q:"Vad är recurrensrisk efter TIA?",a:["Förhöjd, speciellt första dagarna","Noll","Endast efter 1 år"],correct:0}
+  ]
+};
+
+/* -------------------------
+   UI + Funktioner
+   ------------------------- */
+dbg('Bygger UI...');
+const catContainer = document.getElementById('catContainer');
+const icons = {
+  'Hematologi':'🩸',
+  'Onkologi':'🎗️',
+  'Reumatiska sjukdomar':'💊',
+  'Osteoporos':'🦴',
+  'Ortopedi':'🏥',
+  'Geriatrik/kognitiva sjukdomar':'👴',
+  'Neurologiska sjukdomar':'🧠',
+  'Cerebrovaskulära sjukdomar':'🫀'
+};
+
+// bygg kategoriknappar
+Object.keys(bank).forEach(cat=>{
+  const btn = document.createElement('button');
+  btn.className = 'chip';
+  btn.innerHTML = (icons[cat] || '📚') + ' ' + cat;
+  btn.addEventListener('click', ()=> {
+    btn.classList.toggle('selected');
+    dbg('Kategori togglad', cat, 'selected=', btn.classList.contains('selected'));
+  });
+  catContainer.appendChild(btn);
+});
+
+const bestDisplay = document.getElementById('bestScore');
+const statsGrid = document.getElementById('statsGrid');
+const historyCanvas = document.getElementById('historyChart');
+
+// robust localStorage-parser
+function safeParseLS(key, fallback){
+  try{
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : fallback;
+  } catch(e){
+    console.warn('localStorage parse misslyckades för', key, e);
+    return fallback;
+  }
+}
+
+function loadStats(){
+  dbg('Laddar statistik...');
+  const history = safeParseLS('quiz_history', []);
+  const last10 = history.slice(-10).reverse();
+  const avg = last10.length ? Math.round(last10.reduce((s,r)=>s+r.pct,0)/last10.length) : '-';
+  const best = history.length ? Math.max(...history.map(h=>h.pct)) : '-';
+  bestDisplay.textContent = best==='-'? 'Inget än' : best + '%';
+  const catStats = safeParseLS('quiz_cat_stats', {});
+  let hardest='-'; let easiest='-';
+  if(Object.keys(catStats).length){
+    const arr = Object.entries(catStats).map(([k,v])=>({cat:k,pct: Math.round((v.correct/v.attempts)*100)}));
+    arr.sort((a,b)=>a.pct-b.pct);
+    hardest = arr[0].cat; easiest = arr[arr.length-1].cat;
+  }
+  statsGrid.innerHTML = `<div class='stat-card'>Senaste: ${last10.length} runs</div><div class='stat-card'>Medel: ${avg}%</div><div class='stat-card'>Bästa: ${best==='-'?'-':best + '%'}</div><div class='stat-card'>Svåraste: ${hardest}</div><div class='stat-card'>Lättaste: ${easiest}</div>`;
+  drawHistoryChart(last10.map(h=>h.pct));
+}
+
+function drawHistoryChart(data){
+  const c = historyCanvas; const ctx = c.getContext('2d');
+  const dpr = window.devicePixelRatio || 1; c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr; ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,c.clientWidth,c.clientHeight);
+  if(!data.length) { ctx.fillStyle = '#cbd5e1'; ctx.font='14px Arial'; ctx.fillText('Ingen historik än',10,30); return; }
+  const w = c.clientWidth; const h = c.clientHeight; const pad=8; const step = (w-2*pad)/(data.length-1||1);
+  const max = Math.max(100, ...data); const min = 0;
+  ctx.beginPath(); ctx.moveTo(pad,h-pad - (data[0]-min)/(max-min)*(h-2*pad));
+  data.forEach((v,i)=>{ const x=pad+i*step; const y=h-pad - (v-min)/(max-min)*(h-2*pad); ctx.lineTo(x,y); });
+  ctx.lineTo(w-pad,h-pad); ctx.lineTo(pad,h-pad); ctx.closePath(); ctx.fillStyle='rgba(96,165,250,0.15)'; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(pad,h-pad - (data[0]-min)/(max-min)*(h-2*pad)); ctx.strokeStyle='#2563eb'; ctx.lineWidth=2;
+  data.forEach((v,i)=>{ const x=pad+i*step; const y=h-pad - (v-min)/(max-min)*(h-2*pad); ctx.lineTo(x,y); }); ctx.stroke();
+  data.forEach((v,i)=>{ const x=pad+i*step; const y=h-pad - (v-min)/(max-min)*(h-2*pad); ctx.fillStyle='#2563eb'; ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill(); });
+}
+loadStats();
+
+/* antal-knappar: säker bindning */
+let totalQuestions = 10;
+document.querySelectorAll('.qbtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.qbtn').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected');
+    totalQuestions = parseInt(btn.dataset.n);
+    dbg('Antal frågor satt:', totalQuestions);
+  });
+});
+// Markera 10 som default
+const defaultQBtn = document.querySelector('.qbtn[data-n="10"]');
+if (defaultQBtn) defaultQBtn.classList.add('selected');
+
+/* tema & ljud & home */
+const themeToggle = document.getElementById('themeToggle');
+const homeBtn = document.getElementById('homeBtn');
+themeToggle.addEventListener('click', ()=> { document.body.classList.toggle('dark'); dbg('Tema togglat. dark=', document.body.classList.contains('dark')); });
+homeBtn.addEventListener('click', ()=> goHome());
+
+let audioEnabled = false;
+const soundBtn = document.getElementById('soundToggleBtn');
+soundBtn.addEventListener('click', ()=>{ audioEnabled = !audioEnabled; soundBtn.textContent = audioEnabled ? '🔊' : '🔈'; dbg('Ljud:', audioEnabled); if(audioEnabled && audioCtx && audioCtx.state==='suspended') audioCtx.resume(); });
+
+const hintToggle = document.getElementById('hintToggle');
+
+/* WebAudio */
+const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+const audioCtx = AudioCtxClass ? new AudioCtxClass() : null;
+function playTone(freq, duration, volume=0.06){
+  if(!audioEnabled || !audioCtx) return;
+  const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+  o.type='sine'; o.frequency.value = freq; g.gain.value = volume;
+  o.connect(g); g.connect(audioCtx.destination); o.start();
+  setTimeout(()=>{ try{ o.stop(); }catch(e){} }, duration);
+}
+
+/* Quiz state och funktioner */
+let quizList=[]; let answers=[]; let idx=0; let lastQuizList=null; let currentSelectedCats=[];
+function shuffle(arr){ return arr.map(v=>({v,sort:Math.random()})).sort((a,b)=>a.sort-b.sort).map(x=>x.v); }
+
+function startQuiz(){
+  dbg('StartQuiz anropad');
+  currentSelectedCats = [...catContainer.querySelectorAll('.chip.selected')].map(b=>b.textContent.replace(/^\S+\s/,'' ).trim());
+  dbg('Valda kategorier:', currentSelectedCats);
+  if(!currentSelectedCats.length){ alert('Välj minst en kategori'); return; }
+  let pool=[];
+  currentSelectedCats.forEach(c=> pool = pool.concat(bank[c].map(q=>({...q,category:c}))));
+  if(pool.length >= totalQuestions){ quizList = shuffle(pool).slice(0,totalQuestions).map(q=>({...q})); }
+  else { quizList = []; for(let i=0;i<totalQuestions;i++) quizList.push(pool[Math.floor(Math.random()*pool.length)]); }
+  dbg('Quiz-listans längd:', quizList.length);
+  lastQuizList = quizList.map(q=>({...q})); answers=[]; idx=0;
+  document.getElementById('setup').style.display='none';
+  document.getElementById('result').style.display='none';
+  document.getElementById('quiz').style.display='block';
+  homeBtn.style.display = 'inline-block';
+  updateProgress();
+  showQuestion();
+}
+document.getElementById('go').addEventListener('click', ()=> { dbg('Start-knapp tryckt'); startQuiz(); });
+
+function categoryColor(cat){
+  const map = {
+    'Hematologi':'#ef4444','Onkologi':'#9f7aea','Reumatiska sjukdomar':'#f59e0b',
+    'Osteoporos':'#60a5fa','Ortopedi':'#10b981','Geriatrik/kognitiva sjukdomar':'#f97316',
+    'Neurologiska sjukdomar':'#6366f1','Cerebrovaskulära sjukdomar':'#ef6aa3'
+  };
+  return map[cat]||'#60a5fa';
+}
+
+function updateProgress(){
+  document.getElementById('curIdx').textContent = Math.min(idx+1, quizList.length);
+  document.getElementById('curTotal').textContent = quizList.length;
+  const pct = quizList.length ? Math.round((idx/quizList.length)*100) : 0;
+  const bar = document.getElementById('progressBar');
+  if(currentSelectedCats.length===1){
+    const color = categoryColor(currentSelectedCats[0]);
+    bar.style.background = `linear-gradient(90deg, ${color}, #ffffff44)`;
+    bar.style.width = pct + '%';
+  } else if(currentSelectedCats.length>1){
+    const colors = currentSelectedCats.slice(0,4).map(c=>categoryColor(c));
+    bar.style.background = `linear-gradient(90deg, ${colors.join(',')})`;
+    bar.style.width = pct + '%';
+  } else {
+    bar.style.background = '';
+    bar.style.width = pct + '%';
+  }
+}
+
+function showQuestion(){
+  updateProgress();
+  const q = quizList[idx];
+  if(!q){ dbg('Ingen fråga funnen vid idx', idx); return; }
+  const quizContent = document.getElementById('quizContent');
+  quizContent.innerHTML = `<h3>Fråga ${idx+1}/${quizList.length}</h3><p><strong>${q.category}</strong><br>${q.q}</p>`;
+  const opts = shuffle(q.a.map((t,i)=>({t,i})));
+  opts.forEach(opt=>{
+    const b = document.createElement('button'); 
+    b.className='answer'; 
+    b.textContent = opt.t;
+    b.setAttribute('tabindex','0');
+    b.setAttribute('role','button');
+    b.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        b.click();
+      }
+    });
+    b.addEventListener('click', ()=>{
+      dbg('Svar klickat', opt.t, 'index', opt.i);
+      // disable all
+      [...quizContent.querySelectorAll('button.answer')].forEach(btn=>btn.disabled=true);
+      // color chosen
+      if(opt.i === q.correct){ b.classList.add('correct'); playTone(880,120,0.06); }
+      else { b.classList.add('wrong'); playTone(220,200,0.08); }
+      answers.push({q:q.q,category:q.category,correct:q.correct,given:opt.i,options:q.a});
+      // show explanation if enabled
+      if(hintToggle.checked){
+        const hint = document.createElement('div'); hint.className='small'; hint.style.marginTop='8px';
+        hint.textContent = 'Förklaring: ' + (q.expl || 'Ingen förklaring tillagd.');
+        quizContent.appendChild(hint);
+      }
+      setTimeout(()=>{ idx++; if(idx<quizList.length){ showQuestion(); updateProgress(); } else showResult(); },700);
+    });
+    quizContent.appendChild(b);
+  });
+}
+
+function confettiCorners(){
+  const pieces = 90;
+  for(let i=0;i<pieces;i++){
+    const d = document.createElement('div'); d.className='confetti';
+    d.style.width = (6+Math.random()*10)+'px'; d.style.height = (8+Math.random()*12)+'px';
+    d.style.background = `hsl(${Math.random()*360} 90% 60%)`;
+    const side = i%2===0 ? 'left' : 'right';
+    d.style[side] = (10 + Math.random()*60) + 'px';
+    d.style.bottom = '-30px';
+    document.body.appendChild(d);
+    const dx = (Math.random()*window.innerWidth*0.45) * (side==='left'?1:-1);
+    const dy = -(window.innerHeight*0.9 + Math.random()*200);
+    const rotate = Math.random()*720;
+    d.animate([
+      { transform: `translate(0,0) rotate(0deg)`, opacity:1 },
+      { transform: `translate(${dx}px, ${dy}px) rotate(${rotate}deg)`, opacity:0 }
+    ], { duration: 2400 + Math.random()*1200, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    setTimeout(()=>d.remove(), 3800);
+  }
+}
+
+function showResult(){
+  dbg('Visa resultat...');
+  document.getElementById('quiz').style.display='none';
+  const r = document.getElementById('result'); r.style.display='block';
+  const score = answers.filter(a=>a.given===a.correct).length;
+  r.innerHTML = `<h2>Resultat: ${score}/${answers.length}</h2>`;
+  const pct = Math.round(score/answers.length*100);
+  let msg='';
+  if(pct>70){ confettiCorners(); msg='Grattis, du kommer förmodligen klara tentan!'; }
+  else if(pct>=60 && pct<=69){ msg='Oj vad nära, på en bra dag klarar du nog tentan'; }
+  else if(pct>=50 && pct<=59){ msg='Ajdå, men över hälften är ändå bra!'; }
+  else if(pct>=30 && pct<=49){ msg='Hmm, du får nog träna lite mer. Heja heja!'; }
+  else { msg='Inte ditt bästa resultat, men jag vet att du kan bättre!'; }
+  const m = document.createElement('div'); m.className='score'; m.textContent=`${pct}% — ${msg}`; r.appendChild(m);
+
+  // save history
+  const history = safeParseLS('quiz_history', []);
+  history.push({pct,score,total:answers.length,date:new Date().toISOString()});
+  localStorage.setItem('quiz_history', JSON.stringify(history.slice(-50)));
+
+  // per-category stats
+  const catStats = safeParseLS('quiz_cat_stats', {});
+  answers.forEach(a=>{
+    catStats[a.category] = catStats[a.category] || {attempts:0,correct:0};
+    catStats[a.category].attempts += 1;
+    if(a.given === a.correct) catStats[a.category].correct += 1;
+  });
+  localStorage.setItem('quiz_cat_stats', JSON.stringify(catStats));
+
+  // update best
+  const prevBest = parseInt(localStorage.getItem('quiz_best_pct')||'0',10);
+  if(pct > prevBest){ localStorage.setItem('quiz_best_pct', pct); }
+  loadStats();
+
+  // results list (only wrong answers)
+  const list = document.createElement('div'); list.className='result-list';
+  answers.forEach(a=>{ if(a.given!==a.correct){
+    const d=document.createElement('div'); d.style.marginTop='10px';
+    d.innerHTML = `<strong>[${a.category}]</strong> ${a.q}<br><span style='color:#ef4444'>Ditt svar: ${a.options[a.given]}</span><br><span style='color:#16a34a'>Rätt svar: ${a.options[a.correct]}</span>`;
+    list.appendChild(d);
+  }});
+  r.appendChild(list);
+
+  const actions = document.createElement('div'); actions.className='actions-row';
+  const newBtn = document.createElement('button'); newBtn.textContent='Nytt quiz'; newBtn.className='primary';
+  newBtn.addEventListener('click', ()=> startRandomFromCurrent());
+  const sameBtn = document.createElement('button'); sameBtn.textContent='Samma quiz'; sameBtn.className='primary';
+  sameBtn.addEventListener('click', ()=>{ 
+    if(!lastQuizList) return startQuiz(); 
+    quizList = shuffle(lastQuizList.map(q=>({...q}))); 
+    answers = []; idx = 0; 
+    r.style.display='none'; 
+    document.getElementById('quiz').style.display='block'; 
+    updateProgress(); 
+    showQuestion(); 
+  });
+  actions.appendChild(newBtn); actions.appendChild(sameBtn);
+  r.appendChild(actions);
+}
+
+function startRandomFromCurrent(){
+  dbg('StartRandomFromCurrent');
+  if(!currentSelectedCats || !currentSelectedCats.length) return location.reload();
+  let pool = [];
+  currentSelectedCats.forEach(c=> pool = pool.concat(bank[c].map(q=>({...q,category:c}))));
+  if(pool.length >= totalQuestions){
+    quizList = shuffle(pool).slice(0,totalQuestions).map(q=>({...q}));
+  } else {
+    quizList = [];
+    for(let i=0;i<totalQuestions;i++) quizList.push(pool[Math.floor(Math.random()*pool.length)]);
+  }
+  lastQuizList = quizList.map(q=>({...q}));
+  answers = [];
+  idx = 0;
+  document.getElementById('result').style.display='none';
+  document.getElementById('quiz').style.display='block';
+  updateProgress();
+  showQuestion();
+}
+
+function goHome(){
+  dbg('Gå hem till startmenyn');
+  document.getElementById('setup').style.display='block';
+  document.getElementById('quiz').style.display='none';
+  document.getElementById('result').style.display='none';
+  homeBtn.style.display='none';
+}
+
+/* Init */
+window.addEventListener('load', ()=>{
+  dbg('Färdig init, visa start');
+  document.getElementById('setup').style.display='block';
+  document.getElementById('quiz').style.display='none';
+  document.getElementById('result').style.display='none';
+  loadStats();
+});
+
+// Utility: spara hela sidan som en HTML-fil från konsolen
+window.saveQuizToFile = function(filename = 'quiz.html'){
+  try{
+    const doc = `<!doctype html>\n${document.documentElement.outerHTML}`;
+    const blob = new Blob([doc], {type: 'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=> URL.revokeObjectURL(url), 1000);
+    console.log('Sparar fil som', filename);
+  } catch(e){ console.error('Kunde inte spara fil:', e); }
+};
+
+console.log('För att spara filen: kör saveQuizToFile() i webbläsarens konsol.');
+</script>
+</body>
+</html>
